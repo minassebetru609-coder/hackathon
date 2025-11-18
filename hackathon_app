@@ -1,0 +1,83 @@
+import streamlit as st
+import numpy as np
+from scipy.stats import norm
+import plotly.express as px
+import plotly.graph_objects as go
+
+
+# black-scholes formulas
+
+def black_scholes_call(S, K, T, r, sigma):
+    d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T)
+    return S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2)
+
+def black_scholes_put(S, K, T, r, sigma):
+    d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T)
+    return K*np.exp(-r*T)*norm.cdf(-d2) - S*norm.cdf(-d1)
+
+
+# UI
+
+st.title("Black-Scholes Options Price Heatmap")
+
+# fixed parameters
+K = st.slider("Strike Price", 50, 200, 100)
+T = st.slider("Time to Maturity (years)", 0.08, 5.0, 1.0, step = (1/12))
+r = st.slider("Risk-free Interest Rate", 0.0, 0.1, 0.05)
+
+# ranges for heatmap
+st.markdown("### Spot Price Range")
+min_spot = st.number_input("Min Spot Price", 1, 200, 80)
+max_spot = st.number_input("Max Spot Price", 1, 200, 120)
+
+st.markdown("### Volatility Range")
+min_vol = st.number_input("Min Volatility", 0.01, 1.0, 0.1)
+max_vol = st.number_input("Max Volatility", 0.01, 1.0, 0.5)
+
+if min_spot >= max_spot:
+    st.error("Min Spot Price mus be less than Max Spot Price")
+    st.stop()
+
+if min_vol >= max_vol:
+    st.error("Min Volatility must be less than Max Volatility")
+    st.stop()
+
+# ranges for the heatmap
+spot_range = np.linspace(min_spot, max_spot, 12)
+vol_range = np.linspace(min_vol, max_vol, 12)
+
+# compute heatmaps
+call_data = []
+put_data = []
+for v in vol_range:
+    call_row = [black_scholes_call(s, K, T, r, v) for s in spot_range]
+    put_row = [black_scholes_put(s, K, T, r, v) for s in spot_range]
+    call_data.append(call_row)
+    put_data.append(put_row)
+
+# plot call heatmap
+fig_call = px.imshow(call_data,
+                     labels=dict(x="Spot Price", y="Volatility", color="Call Price"),
+                     x=np.round(spot_range, 2),
+                     y=np.round(vol_range, 2),
+                     aspect="auto",
+                     color_continuous_scale="Viridis")
+fig_call.update_layout(title="Call Option Price Heatmap")
+
+# plot put heatmap
+fig_put = px.imshow(put_data,
+                    labels=dict(x="Spot Price", y="Volatility", color="Put Price"),
+                    x=np.round(spot_range, 2),
+                    y=np.round(vol_range, 2),
+                    aspect="auto",
+                    color_continuous_scale="Plasma")
+fig_put.update_layout(title="Put Option Price Heatmap")
+
+# show results
+tab1, tab2 = st.tabs(["↑ Call Heatmap", "↓ Put Heatmap"])
+with tab1:
+    st.plotly_chart(fig_call, use_container_width=True)
+with tab2:
+    st.plotly_chart(fig_put, use_container_width=True)
